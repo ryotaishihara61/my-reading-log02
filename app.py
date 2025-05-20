@@ -10,25 +10,25 @@ import requests
 font_path = "ipaexg.ttf"
 jp_font = font_manager.FontProperties(fname=font_path)
 
-# 画像がない場合はデフォルト画像を表示
-image_url = row["表紙画像"]
-if not image_url or image_url.strip() == "":
-    image_url = "https://raw.githubusercontent.com/ryotaishihara61/my-reading-log02/main/no-image.png"
-st.image(image_url, width=100)
-
 # 📌 安全に画像を表示する関数
 def safe_image_display(url: str, width: int = 100):
     try:
-        if url and isinstance(url, str) and url.startswith("http"):
+        # 空欄や None のときは no-image.png を使用
+        if not url or not isinstance(url, str) or url.strip() == "":
+            url = "https://raw.githubusercontent.com/ryotaishihara61/my-reading-log02/main/no-image.png"
+
+        if url.startswith("http"):
             secure_url = url.replace("http://", "https://")
             resp = requests.head(secure_url, timeout=3)
-            if resp.status_code == 200 and 'image' in resp.headers.get("Content-Type", ""):
+            if resp.status_code == 200 and "image" in resp.headers.get("Content-Type", ""):
                 st.image(secure_url, width=width)
             else:
                 st.warning("⚠️ 表紙画像が無効な形式です")
+        else:
+            st.warning("⚠️ 表紙画像URLが無効です")
     except Exception as e:
         st.warning(f"⚠️ 表紙画像の読み込みエラー: {e}")
-
+        
 # 🔐 Google Sheets認証
 def get_worksheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
