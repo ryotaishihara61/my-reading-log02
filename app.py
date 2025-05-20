@@ -7,7 +7,7 @@ from matplotlib import font_manager
 import requests
 
 # 日本語フォントを読み込み（プロジェクトにファイルが必要）
-font_path = "./fonts/ipaexg.ttf"  # 実際のパスに合わせて修正
+font_path = "ipaexg.ttf"  # 実際のパスに合わせて修正
 jp_font = font_manager.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = jp_font.get_name()
 
