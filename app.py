@@ -4,36 +4,30 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="📚 読書記録", layout="wide")
-
-# Google Sheets 認証
+# Google Sheets認証
 def get_worksheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
-        st.secrets["gcp_service_account"], scope)
+        st.secrets["gcp_service_account"],
+        scope
+    )
     client = gspread.authorize(creds)
-    sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
-    return sheet
+    spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
+    return spreadsheet.sheet1
 
-# データ取得とDataFrame変換
+# データの取得
 sheet = get_worksheet()
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
-# UI - タイトル
-st.title("📚 読書記録一覧")
+st.title("📚 読書記録ログ")
 
-# 検索・絞り込み
-col1, col2, col3 = st.columns([2, 1, 1])
+# 検索・フィルター
+keyword = st.text_input("🔍 タイトル・著者で検索")
+rating_filter = st.selectbox("⭐ 評価で絞り込み", options=["すべて", "★5", "★4以上", "★3以上", "★2以上", "★1以上"])
+month_filter = st.selectbox("📅 年月で絞り込み", options=["すべて"] + sorted(df["読了日"].str[:7].dropna().unique()))
 
-with col1:
-    keyword = st.text_input("🔍 タイトルや著者で検索")
-with col2:
-    rating_filter = st.selectbox("⭐ 評価で絞り込み", options=["すべて", "★5", "★4以上", "★3以上", "★2以上", "★1以上"])
-with col3:
-    month_filter = st.selectbox("📅 年月で絞り込み", options=["すべて"] + sorted(df["読了日"].str[:7].unique()))
-
-# フィルター処理
+# 絞り込み処理
 filtered_df = df.copy()
 
 if keyword:
@@ -43,38 +37,31 @@ if keyword:
     ]
 
 if rating_filter != "すべて":
-    threshold = int(rating_filter[1])
-    filtered_df = filtered_df[filtered_df["評価"] >= threshold]
+    stars = int(rating_filter.replace("★", "").replace("以上", ""))
+    filtered_df = filtered_df[filtered_df["評価"] >= stars]
 
 if month_filter != "すべて":
     filtered_df = filtered_df[filtered_df["読了日"].str.startswith(month_filter)]
 
 # 表示
 for _, row in filtered_df.iterrows():
-    with st.container():
-        cols = st.columns([1, 5])
-        with cols[0]:
-            if row["表紙画像"]:
-                st.image(row["表紙画像"], width=100)
-            else:
-                st.image("no-image.png", width=100)
-        with cols[1]:
-            st.subheader(row["タイトル"])
-            st.caption(f"著者: {row['著者']} / 読了日: {row['読了日']}")
-            st.markdown("⭐" * int(row["評価"]))
-            if row["メモ"]:
-                st.markdown(f"✏️ {row['メモ']}")
+    st.markdown(f"### {row['タイトル']}")
+    st.write(f"著者: {row['著者']}")
+    st.write(f"読了日: {row['読了日']}")
+    st.write(f"評価: {'★' * int(row['評価'])}")
+    if row["メモ"]:
+        st.write(f"メモ: {row['メモ']}")
+    if row["表紙画像"]:
+        st.image(row["表紙画像"], width=100)
+    st.markdown("---")
 
-# 📊 グラフ
-st.markdown("---")
-st.subheader("📊 月別読了数")
-
+# 月別グラフ
 if not df.empty:
-    df["読了月"] = df["読了日"].str[:7]
-    monthly_counts = df["読了月"].value_counts().sort_index()
+    df["年月"] = df["読了日"].str[:7]
+    monthly_count = df["年月"].value_counts().sort_index()
+    st.subheader("📊 月別読了数")
     fig, ax = plt.subplots()
-    monthly_counts.plot(kind="bar", ax=ax)
+    monthly_count.plot(kind="bar", ax=ax)
     ax.set_xlabel("年月")
-    ax.set_ylabel("読了冊数")
-    ax.set_title("月別読了数")
+    ax.set_ylabel("冊数")
     st.pyplot(fig)
