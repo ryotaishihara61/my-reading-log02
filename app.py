@@ -19,24 +19,37 @@ def get_worksheet():
 sheet = get_worksheet()
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
-df.columns = [col.strip() for col in df.columns]  # 列名の前後の空白を削除
-df["評価"] = pd.to_numeric(df["評価"], errors="coerce")
+
+# 列名の前後の空白を削除
+df.columns = [col.strip() for col in df.columns]
 st.write("現在の列名一覧:", df.columns.tolist())  # デバッグ表示
+
+# 必要な列がすべて存在するかチェック
+required_columns = ["タイトル", "著者", "読了日", "メモ", "評価", "表紙画像"]
+missing = [col for col in required_columns if col not in df.columns]
+if missing:
+    st.error(f"次の列が見つかりません: {missing}")
+    st.stop()
+
+# 型変換
+df["評価"] = pd.to_numeric(df["評価"], errors="coerce")
+df["読了日"] = df["読了日"].astype(str)
 
 st.title("📚 読書記録ログ")
 
 # 検索・フィルター
 keyword = st.text_input("🔍 タイトル・著者で検索")
 rating_filter = st.selectbox("⭐ 評価で絞り込み", options=["すべて", "★5", "★4以上", "★3以上", "★2以上", "★1以上"])
-month_filter = st.selectbox("📅 年月で絞り込み", options=["すべて"] + sorted(df["読了日"].str[:7].dropna().unique()))
+month_options = ["すべて"] + sorted(df["読了日"].dropna().str[:7].unique())
+month_filter = st.selectbox("📅 年月で絞り込み", options=month_options)
 
 # 絞り込み処理
 filtered_df = df.copy()
 
 if keyword:
     filtered_df = filtered_df[
-        filtered_df["タイトル"].str.contains(keyword, case=False, na=False) |
-        filtered_df["著者"].str.contains(keyword, case=False, na=False)
+        filtered_df["タイトル"].astype(str).str.contains(keyword, case=False, na=False) |
+        filtered_df["著者"].astype(str).str.contains(keyword, case=False, na=False)
     ]
 
 if rating_filter != "すべて":
@@ -54,7 +67,7 @@ for _, row in filtered_df.iterrows():
     st.markdown(f"### {row['タイトル']}")
     st.write(f"著者: {row['著者']}")
     st.write(f"読了日: {row['読了日']}")
-    st.write(f"評価: {'★' * int(row['評価'])}")
+    st.write(f"評価: {'★' * int(row['評価']) if pd.notna(row['評価']) else '評価なし'}")
     if row["メモ"]:
         st.write(f"メモ: {row['メモ']}")
     if row["表紙画像"]:
