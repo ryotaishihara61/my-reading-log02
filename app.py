@@ -10,6 +10,12 @@ import requests
 font_path = "ipaexg.ttf"
 jp_font = font_manager.FontProperties(fname=font_path)
 
+# 画像がない場合はデフォルト画像を表示
+image_url = row["表紙画像"]
+if not image_url or image_url.strip() == "":
+    image_url = "https://raw.githubusercontent.com/ryotaishihara61/my-reading-log02/main/no-image.png"
+st.image(image_url, width=100)
+
 # 📌 安全に画像を表示する関数
 def safe_image_display(url: str, width: int = 100):
     try:
