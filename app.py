@@ -19,6 +19,8 @@ def get_worksheet():
 sheet = get_worksheet()
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
+df.columns = [col.strip() for col in df.columns]  # 列名の前後の空白を削除
+st.write("現在の列名一覧:", df.columns.tolist())  # デバッグ表示
 
 st.title("📚 読書記録ログ")
 
