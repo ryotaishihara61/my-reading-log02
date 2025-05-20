@@ -115,7 +115,8 @@ if st.button("🔍 本を検索"):
     if not isbn_clean.isdigit():
         st.error("無効なISBNコードです。数字またはハイフン付きで入力してください。")
     else:
-        google_books_url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn_clean}"
+        api_key = st.secrets["google_books_api_key"]
+        google_books_url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn_clean}&key={api_key}"
         try:
             res = requests.get(google_books_url)
             res.raise_for_status()
