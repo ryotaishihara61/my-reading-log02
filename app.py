@@ -20,6 +20,7 @@ sheet = get_worksheet()
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 df.columns = [col.strip() for col in df.columns]  # 列名の前後の空白を削除
+df["評価"] = pd.to_numeric(df["評価"], errors="coerce")
 st.write("現在の列名一覧:", df.columns.tolist())  # デバッグ表示
 
 st.title("📚 読書記録ログ")
@@ -39,8 +40,11 @@ if keyword:
     ]
 
 if rating_filter != "すべて":
-    stars = int(rating_filter.replace("★", "").replace("以上", ""))
-    filtered_df = filtered_df[filtered_df["評価"] >= stars]
+    try:
+        stars = int(str(rating_filter).replace("★", "").replace("以上", ""))
+        filtered_df = filtered_df[filtered_df["評価"] >= stars]
+    except Exception as e:
+        st.error(f"評価のフィルター処理でエラーが発生しました: {e}")
 
 if month_filter != "すべて":
     filtered_df = filtered_df[filtered_df["読了日"].str.startswith(month_filter)]
