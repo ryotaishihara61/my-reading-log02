@@ -3,8 +3,22 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import matplotlib.pyplot as plt
+import requests
 
-# Google Sheets 認証
+# 📌 安全に画像を表示する関数
+def safe_image_display(url: str, width: int = 100):
+    try:
+        if url and isinstance(url, str) and url.startswith("http"):
+            secure_url = url.replace("http://", "https://")
+            resp = requests.head(secure_url, timeout=3)
+            if resp.status_code == 200 and 'image' in resp.headers.get("Content-Type", ""):
+                st.image(secure_url, width=width)
+            else:
+                st.warning("⚠️ 表紙画像が無効な形式です")
+    except Exception as e:
+        st.warning(f"⚠️ 表紙画像の読み込みエラー: {e}")
+
+# 🔐 Google Sheets認証
 def get_worksheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
@@ -15,70 +29,54 @@ def get_worksheet():
     spreadsheet = client.open_by_key(st.secrets["spreadsheet_id"])
     return spreadsheet.sheet1
 
-# データの取得
+# 📄 データの取得
 sheet = get_worksheet()
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
-df.columns = [col.strip() for col in df.columns]  # 列名の前後の空白を削除
+df.columns = [col.strip() for col in df.columns]
 df["評価"] = pd.to_numeric(df["評価"], errors="coerce")
+st.write("現在の列名一覧:", df.columns.tolist())  # デバッグ用
 
 st.title("📚 読書記録ログ")
-st.write("📋 現在の列名:", df.columns.tolist())  # デバッグ用
 
-# 検索・フィルター
+# 🔍 検索・フィルター
 keyword = st.text_input("🔍 タイトル・著者で検索")
 rating_filter = st.selectbox("⭐ 評価で絞り込み", options=["すべて", "★5", "★4以上", "★3以上", "★2以上", "★1以上"])
-month_filter = st.selectbox(
-    "📅 年月で絞り込み",
-    options=["すべて"] + sorted(df["読了日"].dropna().astype(str).str[:7].unique())
-)
+month_filter = st.selectbox("📅 年月で絞り込み", options=["すべて"] + sorted(df["読了日"].astype(str).str[:7].dropna().unique()))
 
-# 絞り込み処理
 filtered_df = df.copy()
 
 if keyword:
     filtered_df = filtered_df[
-        filtered_df["タイトル"].astype(str).str.contains(keyword, case=False, na=False) |
-        filtered_df["著者"].astype(str).str.contains(keyword, case=False, na=False)
+        filtered_df["タイトル"].str.contains(keyword, case=False, na=False) |
+        filtered_df["著者"].str.contains(keyword, case=False, na=False)
     ]
 
 if rating_filter != "すべて":
     try:
-        stars = int(rating_filter.replace("★", "").replace("以上", ""))
+        stars = int(str(rating_filter).replace("★", "").replace("以上", ""))
         filtered_df = filtered_df[filtered_df["評価"] >= stars]
     except Exception as e:
-        st.error(f"評価フィルターエラー: {e}")
+        st.error(f"評価のフィルター処理でエラー: {e}")
 
 if month_filter != "すべて":
     filtered_df = filtered_df[filtered_df["読了日"].astype(str).str.startswith(month_filter)]
 
-# 読書記録の表示
+# 📋 表示
 for _, row in filtered_df.iterrows():
     st.markdown(f"### {row['タイトル']}")
     st.write(f"著者: {row['著者']}")
     st.write(f"読了日: {row['読了日']}")
-    st.write(f"評価: {'★' * int(row['評価']) if pd.notna(row['評価']) else 'なし'}")
-
-    if row["メモ"]:
+    st.write(f"評価: {'★' * int(row['評価'])}")
+    if row.get("メモ"):
         st.write(f"メモ: {row['メモ']}")
-
-    image_url = str(row.get("表紙画像", "")).strip()
-    if image_url.startswith("http"):
-        try:
-            safe_url = image_url.replace("http://", "https://")
-            st.image(safe_url, width=100)
-        except Exception as e:
-            st.warning(f"画像の読み込みエラー: {e}")
-    else:
-        st.write("📕 表紙画像なし")
-
+    safe_image_display(str(row.get("表紙画像", "")))
     st.markdown("---")
 
-# 月別グラフ
+# 📊 月別読了グラフ
 if not df.empty:
     df["年月"] = df["読了日"].astype(str).str[:7]
     monthly_count = df["年月"].value_counts().sort_index()
-
     st.subheader("📊 月別読了数")
     fig, ax = plt.subplots()
     monthly_count.plot(kind="bar", ax=ax)
