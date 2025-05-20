@@ -36,7 +36,7 @@ df = pd.DataFrame(data)
 df.columns = [col.strip() for col in df.columns]
 df["評価"] = pd.to_numeric(df["評価"], errors="coerce")
 
-st.title("📚 読書記録ログ")
+st.title("📚 読了ズ")
 
 # 🔍 検索・フィルター
 keyword = st.text_input("🔍 タイトル・著者で検索")
@@ -74,11 +74,16 @@ for _, row in filtered_df.iterrows():
 
 # 📊 月別読了グラフ
 if not df.empty:
+    import matplotlib.ticker as ticker
+    plt.rcParams['font.family'] = 'IPAexGothic'
+
     df["年月"] = df["読了日"].astype(str).str[:7]
     monthly_count = df["年月"].value_counts().sort_index()
+
     st.subheader("📊 月別読了数")
     fig, ax = plt.subplots()
     monthly_count.plot(kind="bar", ax=ax)
     ax.set_xlabel("年月")
     ax.set_ylabel("冊数")
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # Y軸目盛りを整数に
     st.pyplot(fig)
