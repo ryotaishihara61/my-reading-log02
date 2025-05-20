@@ -28,7 +28,7 @@ def safe_image_display(url: str, width: int = 100):
             st.warning("⚠️ 表紙画像URLが無効です")
     except Exception as e:
         st.warning(f"⚠️ 表紙画像の読み込みエラー: {e}")
-        
+
 # 🔐 Google Sheets認証
 def get_worksheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -105,3 +105,47 @@ if not df.empty:
        label.set_fontproperties(jp_font)
 
     st.pyplot(fig)
+
+st.header("📖 新しい本の登録")
+
+isbn_input = st.text_input("ISBNコードを入力（例: 978-4101202433 または 9784101202433）")
+
+if st.button("🔍 本を検索"):
+    isbn_clean = isbn_input.replace("-", "").strip()
+    if not isbn_clean.isdigit():
+        st.error("無効なISBNコードです。数字またはハイフン付きで入力してください。")
+    else:
+        google_books_url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn_clean}"
+        try:
+            res = requests.get(google_books_url)
+            res.raise_for_status()
+            items = res.json().get("items")
+            if items:
+                volume_info = items[0]["volumeInfo"]
+                title = volume_info.get("title", "")
+                authors = ", ".join(volume_info.get("authors", []))
+                image = volume_info.get("imageLinks", {}).get("thumbnail", "")
+                st.success("📚 本が見つかりました。下記内容で登録してください。")
+
+                with st.form("register_book"):
+                    memo = st.text_input("メモ")
+                    rating = st.slider("評価", 1, 5, 3)
+                    read_date = st.date_input("読了日")
+                    submit = st.form_submit_button("✅ 登録")
+
+                    if submit:
+                        sheet = get_worksheet()
+                        sheet.append_row([
+                            isbn_clean,
+                            title,
+                            authors,
+                            str(read_date),
+                            memo,
+                            rating,
+                            image
+                        ])
+                        st.success("✅ 登録が完了しました！")
+            else:
+                st.warning("該当する本が見つかりませんでした。")
+        except Exception as e:
+            st.error(f"📡 Google Books API の取得中にエラーが発生しました: {e}")
