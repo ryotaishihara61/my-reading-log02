@@ -3,7 +3,13 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 import requests
+
+# 日本語フォントを読み込み（プロジェクトにファイルが必要）
+font_path = "./fonts/ipaexg.ttf"  # 実際のパスに合わせて修正
+jp_font = font_manager.FontProperties(fname=font_path)
+plt.rcParams["font.family"] = jp_font.get_name()
 
 # 📌 安全に画像を表示する関数
 def safe_image_display(url: str, width: int = 100):
