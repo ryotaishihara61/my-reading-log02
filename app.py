@@ -96,6 +96,6 @@ if not df.empty:
 
     ax.tick_params(axis='x', labelrotation=45)
     for label in ax.get_xticklabels() + ax.get_yticklabels():
-    label.set_fontproperties(jp_font)
+       label.set_fontproperties(jp_font)
 
     st.pyplot(fig)
