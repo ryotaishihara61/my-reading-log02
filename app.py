@@ -35,7 +35,6 @@ data = sheet.get_all_records()
 df = pd.DataFrame(data)
 df.columns = [col.strip() for col in df.columns]
 df["評価"] = pd.to_numeric(df["評価"], errors="coerce")
-st.write("現在の列名一覧:", df.columns.tolist())  # デバッグ用
 
 st.title("📚 読書記録ログ")
 
