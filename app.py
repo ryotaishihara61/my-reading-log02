@@ -7,9 +7,8 @@ from matplotlib import font_manager
 import requests
 
 # 日本語フォントを読み込み（プロジェクトにファイルが必要）
-font_path = "ipaexg.ttf"  # 実際のパスに合わせて修正
+font_path = "ipaexg.ttf"
 jp_font = font_manager.FontProperties(fname=font_path)
-plt.rcParams["font.family"] = jp_font.get_name()
 
 # 📌 安全に画像を表示する関数
 def safe_image_display(url: str, width: int = 100):
@@ -89,7 +88,14 @@ if not df.empty:
     st.subheader("📊 月別読了数")
     fig, ax = plt.subplots()
     monthly_count.plot(kind="bar", ax=ax)
-    ax.set_xlabel("年月")
-    ax.set_ylabel("冊数")
+
+    ax.set_xlabel("年月", fontproperties=jp_font)
+    ax.set_ylabel("冊数", fontproperties=jp_font)
+    ax.set_title("月別読了数", fontproperties=jp_font)
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))  # Y軸目盛りを整数に
+
+    ax.tick_params(axis='x', labelrotation=45)
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+    label.set_fontproperties(jp_font)
+
     st.pyplot(fig)
