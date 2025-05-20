@@ -1,132 +1,85 @@
 import streamlit as st
-import pandas as pd
-import requests
-import datetime
-import matplotlib.pyplot as plt
-import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import matplotlib.pyplot as plt
+import pandas as pd
 
-# Google Sheets 認証
+# Google Sheets に接続する関数
 def get_worksheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+
+    # secrets.toml に記載されたサービスアカウント情報を読み込む
+    service_account_info = st.secrets["gcp_service_account"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
     client = gspread.authorize(creds)
-    sheet_id = st.secrets["1uAnEQFm6qwf-4xsYcAJyRQlfjkZgpDKlnBMQYfecEAs"]
-    sheet = client.open_by_key(sheet_id).sheet1
+
+    sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
     return sheet
 
-# Google Books API でISBNから書籍情報を取得
-def fetch_book_info(isbn):
-    url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
-    res = requests.get(url)
-    if res.status_code != 200:
-        return None
-    data = res.json()
-    if "items" not in data:
-        return None
-    volume = data["items"][0]["volumeInfo"]
-    return {
-        "title": volume.get("title", ""),
-        "author": volume.get("authors", [""])[0],
-        "image": volume.get("imageLinks", {}).get("thumbnail", "")
-    }
-
-# 書籍をシートに保存
-def save_book(sheet, record):
-    row = [
-        record["isbn"],
-        record["title"],
-        record["author"],
-        record["date"],
-        record["memo"],
-        record["rating"],
-        record["image"]
-    ]
-    sheet.append_row(row)
-
-# データフレーム取得
-def load_data(sheet):
-    data = sheet.get_all_values()
-    df = pd.DataFrame(data[1:], columns=data[0])
+# データを読み込む関数
+def load_data():
+    sheet = get_worksheet()
+    records = sheet.get_all_records()
+    df = pd.DataFrame(records)
     return df
 
-# UI スタート
-st.set_page_config(page_title="読書記録アプリ", layout="wide")
+# Streamlit UI
 st.title("📚 読書記録アプリ")
 
-sheet = get_worksheet()
+# データ読み込み
+try:
+    df = load_data()
+except Exception as e:
+    st.error(f"読み込みエラー: {e}")
+    st.stop()
 
-# タブ選択
-tab1, tab2 = st.tabs(["📥 新しい本を記録", "📖 一覧・グラフ"])
+# 検索・フィルター
+search_query = st.text_input("🔍 タイトルや著者で検索")
+rating_filter = st.selectbox("⭐ 評価で絞り込み", options=[0, 1, 2, 3, 4, 5], format_func=lambda x: f"★{x}以上" if x else "すべて")
+month_filter = st.selectbox("📅 年月で絞り込み", options=["すべて"] + sorted(df["date"].str[:7].unique()))
 
-# ---- TAB 1: 登録 ----
-with tab1:
-    st.subheader("📘 書籍情報を入力")
-    isbn = st.text_input("ISBN-13", placeholder="例: 9784763141880")
-    if st.button("書籍検索") and isbn:
-        info = fetch_book_info(isbn)
-        if info:
-            st.success("書籍が見つかりました")
-            st.image(info["image"])
-            title = st.text_input("タイトル", value=info["title"])
-            author = st.text_input("著者", value=info["author"])
-        else:
-            st.error("書籍が見つかりませんでした")
-            title = st.text_input("タイトル")
-            author = st.text_input("著者")
-    else:
-        title = st.text_input("タイトル")
-        author = st.text_input("著者")
+# フィルター処理
+filtered_df = df.copy()
+if search_query:
+    search_query = search_query.lower()
+    filtered_df = filtered_df[
+        filtered_df["title"].str.lower().str.contains(search_query) |
+        filtered_df["author"].str.lower().str.contains(search_query)
+    ]
+if rating_filter:
+    filtered_df = filtered_df[filtered_df["rating"] >= rating_filter]
+if month_filter != "すべて":
+    filtered_df = filtered_df[filtered_df["date"].str.startswith(month_filter)]
 
-    date = st.date_input("読了日", value=datetime.date.today())
-    rating = st.slider("評価（★）", 1, 5, 3)
-    memo = st.text_area("メモ・感想")
-    image = info["image"] if "info" in locals() and info else ""
+# 一覧表示
+st.subheader("📖 読書一覧")
+if filtered_df.empty:
+    st.info("該当するデータがありません。")
+else:
+    for _, row in filtered_df.iterrows():
+        with st.container():
+            cols = st.columns([1, 4])
+            with cols[0]:
+                if row["image"].startswith("http"):
+                    st.image(row["image"], width=80)
+                else:
+                    st.image("no-image.png", width=80)
+            with cols[1]:
+                st.markdown(f"**{row['title']}**")
+                st.markdown(f"著者: {row['author']}　📅 {row['date']}　⭐ {'★'*int(row['rating'])}")
+                if row["memo"]:
+                    st.markdown(f"> {row['memo']}")
 
-    if st.button("📌 保存する"):
-        record = {
-            "isbn": isbn,
-            "title": title,
-            "author": author,
-            "date": date.strftime("%Y-%m-%d"),
-            "memo": memo,
-            "rating": rating,
-            "image": image
-        }
-        save_book(sheet, record)
-        st.success("保存しました！")
-
-# ---- TAB 2: 一覧・グラフ ----
-with tab2:
-    st.subheader("📖 読了記録一覧")
-    df = load_data(sheet)
-
-    if df.empty:
-        st.info("まだ記録がありません。")
-    else:
-        # 検索・フィルター
-        col1, col2 = st.columns(2)
-        with col1:
-            search = st.text_input("🔍 タイトル・著者検索")
-        with col2:
-            min_rating = st.selectbox("⭐ 最低評価", ["すべて", "1", "2", "3", "4", "5"])
-
-        if search:
-            df = df[df["title"].str.contains(search, case=False) | df["author"].str.contains(search, case=False)]
-        if min_rating != "すべて":
-            df = df[df["rating"].astype(int) >= int(min_rating)]
-
-        # 表示
-        st.dataframe(df[["date", "title", "author", "rating", "memo"]], use_container_width=True)
-
-        # グラフ
-        st.subheader("📊 月別読了数")
-        df["month"] = df["date"].str[:7]
-        chart_data = df.groupby("month").size().reset_index(name="count")
-        fig, ax = plt.subplots()
-        ax.bar(chart_data["month"], chart_data["count"], color="#60a5fa")
-        ax.set_ylabel("冊数")
-        ax.set_xlabel("年月")
-        ax.set_title("月ごとの読了冊数")
-        st.pyplot(fig)
+# グラフ表示
+st.subheader("📊 月別読了数")
+if "date" in df.columns:
+    df["month"] = df["date"].str[:7]
+    chart_data = df["month"].value_counts().sort_index()
+    fig, ax = plt.subplots()
+    chart_data.plot(kind="bar", ax=ax, color="#60a5fa")
+    ax.set_xlabel("年月")
+    ax.set_ylabel("冊数")
+    st.pyplot(fig)
